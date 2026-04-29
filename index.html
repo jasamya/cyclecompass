@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycle Compass | Private Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --phase-menstrual: #f87171;
+            --phase-follicular: #60a5fa;
+            --phase-ovulation: #fbbf24;
+            --phase-luteal: #818cf8;
+        }
+
+        .dark {
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .day-cell {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .day-cell:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        .dark .day-cell:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .indicator {
+            position: absolute;
+            bottom: 4px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+        }
+
+        .phase-highlight {
+            border-radius: 50%;
+            width: 80%;
+            height: 80%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .menstrual-bg { background-color: rgba(248, 113, 113, 0.2); border: 2px solid var(--phase-menstrual); }
+        .follicular-bg { background-color: rgba(96, 165, 250, 0.2); border: 2px solid var(--phase-follicular); }
+        .ovulation-bg { background-color: rgba(251, 191, 36, 0.2); border: 2px solid var(--phase-ovulation); }
+        .luteal-bg { background-color: rgba(129, 140, 248, 0.2); border: 2px solid var(--phase-luteal); }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="transition-colors duration-300 min-h-screen bg-slate-50 text-slate-900 font-sans">
+    
+    <!-- Login Screen -->
+    <div id="login-screen" class="fixed inset-0 z-[200] bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold">Private Access</h2>
+                <p class="text-sm text-slate-500 mt-2">Please sign in to view tracking data</p>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 ml-1">Username</label>
+                    <input type="text" id="username" required class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-slate-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 ml-1">Password</label>
+                    <input type="password" id="password" required class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-slate-400">
+                </div>
+                <div id="login-error" class="text-red-500 text-xs text-center hidden">Invalid credentials. Please try again.</div>
+                <button type="submit" class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-3 rounded-xl font-bold shadow-lg hover:opacity-90 transition-opacity">
+                    Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content (Hidden by default) -->
+    <div id="app" class="max-w-md mx-auto p-4 pb-24 hidden">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6 pt-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Cycle Compass</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400" id="current-date-display"></p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800">
+                    <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z"></path></svg>
+                    <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+                <button onclick="toggleSettings()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Current Status Card -->
+        <section id="status-card" class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm mb-6 border border-slate-100 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-4">
+                <span id="phase-tag" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-700">Unknown Phase</span>
+                <span id="day-counter" class="text-2xl font-bold text-slate-700 dark:text-slate-200">Day --</span>
+            </div>
+            <h2 id="phase-title" class="text-xl font-bold mb-2">Cycle Analysis</h2>
+            <p id="phase-description" class="text-sm text-slate-500 dark:text-slate-400">Log a period to start tracking trends and insights.</p>
+            
+            <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
+                <div class="flex justify-between text-xs text-slate-400 mb-2">
+                    <span>Next Period</span>
+                    <span id="next-period-date">Unknown</span>
+                </div>
+                <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div id="cycle-progress" class="bg-slate-400 h-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Calendar Container -->
+        <section class="bg-white dark:bg-slate-800 rounded-3xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+            <div class="flex justify-between items-center mb-4 px-2">
+                <h3 id="calendar-month-year" class="font-bold">Month Year</h3>
+                <div class="flex gap-1">
+                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="calendar-grid text-center text-xs font-medium text-slate-400 mb-2">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+            </div>
+            <div id="calendar-body" class="calendar-grid text-sm">
+                <!-- Days will be injected here -->
+            </div>
+        </section>
+
+        <!-- Quick Insights -->
+        <section id="insights-section" class="space-y-3 mb-6">
+            <h3 class="px-2 font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM13.536 14.95a1 1 0 010-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414 0zM6.464 14.95l-.707-.707a1 1 0 011.414-1.414l.707.707a1 1 0 01-1.414 1.414zM10 11a1 1 0 100-2 1 1 0 000 2z"></path></svg>
+                Insights
+            </h3>
+            <div id="insight-container" class="space-y-2">
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl text-sm">
+                    Log historical data to generate patterns and predictions.
+                </div>
+            </div>
+        </section>
+
+        <!-- Log Modal -->
+        <div id="log-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden" onclick="closeModals()">
+            <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold" id="modal-date-title">Log Data</h3>
+                    <button onclick="closeModals()" class="text-slate-400 hover:text-slate-600">&times;</button>
+                </div>
+                
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Phase Logging</label>
+                        <div class="flex gap-2">
+                            <button onclick="togglePeriodMark()" id="period-btn" class="flex-1 py-3 px-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 text-sm font-medium transition-all">
+                                🩸 Period Start/End
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Energy & Mood</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="toggleTag('😊')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">😊 Happy</button>
+                            <button onclick="toggleTag('😔')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">😔 Low</button>
+                            <button onclick="toggleTag('😤')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">😤 Irritable</button>
+                            <button onclick="toggleTag('⚡')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">⚡ Energetic</button>
+                            <button onclick="toggleTag('💤')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">💤 Fatigued</button>
+                            <button onclick="toggleTag('💪')" class="tag-btn p-2 px-4 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">💪 Cramps</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Notes</label>
+                        <textarea id="daily-notes" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-slate-400 outline-none" rows="3" placeholder="How is she feeling today?"></textarea>
+                    </div>
+
+                    <button onclick="saveDayLog()" class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-bold shadow-lg">Save Record</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden" onclick="closeModals()">
+            <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl" onclick="event.stopPropagation()">
+                <h3 class="text-xl font-bold mb-6">Settings</h3>
+                <div class="space-y-4">
+                    <button onclick="exportData()" class="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                        <span class="text-sm font-medium">Export Data (JSON)</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </button>
+                    <label class="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 cursor-pointer">
+                        <span class="text-sm font-medium">Import Data</span>
+                        <input type="file" id="import-file" class="hidden" onchange="importData(this)">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </label>
+                    <button onclick="logout()" class="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                        <span class="text-sm font-medium">Logout</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                    <button onclick="resetData()" class="w-full flex items-center justify-between p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+                        <span class="text-sm font-medium text-red-600">Reset All Data</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-medium shadow-xl opacity-0 transition-opacity pointer-events-none z-[100]">
+            Action saved
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let state = {
+            logs: {}, // dateString: { period: bool, tags: [], note: "" }
+            currentDate: new Date(),
+            viewDate: new Date(),
+            selectedDate: null,
+            isDarkMode: localStorage.getItem('darkMode') === 'true',
+            isLoggedIn: sessionStorage.getItem('isLoggedIn') === 'true'
+        };
+
+        const CREDENTIALS = {
+            user: "admin",
+            pass: "1234"
+        };
+
+        const PHASE_INFO = {
+            MENSTRUAL: {
+                title: "Menstrual Phase",
+                tag: "Menstrual",
+                color: "var(--phase-menstrual)",
+                description: "Hormones drop, period begins. Energy and mood are usually at their lowest.",
+                insight: "This phase is typically associated with lower energy. Prioritize rest and warmth."
+            },
+            FOLLICULAR: {
+                title: "Follicular Phase",
+                tag: "Follicular",
+                color: "var(--phase-follicular)",
+                description: "Estrogen starts rising. Mood and cognitive function usually improve.",
+                insight: "Physical energy is climbing. Great time for learning and new projects."
+            },
+            OVULATION: {
+                title: "Ovulation Phase",
+                tag: "Fertile Window",
+                color: "var(--phase-ovulation)",
+                description: "The peak of estrogen and testosterone. Energy and confidence are highest.",
+                insight: "This phase may be more social and energetic. Higher libido is common."
+            },
+            LUTEAL: {
+                title: "Luteal Phase",
+                tag: "Luteal",
+                color: "var(--phase-luteal)",
+                description: "Progesterone rises. Mood might become more sensitive or calm.",
+                insight: "Focus on nurturing routines. Energy might dip as the cycle ends."
+            },
+            UNKNOWN: {
+                title: "Tracking Cycle",
+                tag: "Gathering Data",
+                color: "gray",
+                description: "Waiting for historical data to predict current phase accurately.",
+                insight: "Consistency is key! Keep logging her start dates."
+            }
+        };
+
+        // --- Auth Logic ---
+        function handleLogin(event) {
+            event.preventDefault();
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+
+            if (u === CREDENTIALS.user && p === CREDENTIALS.pass) {
+                state.isLoggedIn = true;
+                sessionStorage.setItem('isLoggedIn', 'true');
+                errorEl.classList.add('hidden');
+                init();
+            } else {
+                errorEl.classList.remove('hidden');
+                // Shake effect
+                const form = document.getElementById('login-form');
+                form.classList.add('animate-bounce');
+                setTimeout(() => form.classList.remove('animate-bounce'), 500);
+            }
+        }
+
+        function logout() {
+            state.isLoggedIn = false;
+            sessionStorage.removeItem('isLoggedIn');
+            location.reload();
+        }
+
+        // --- Initialization ---
+        function init() {
+            if (!state.isLoggedIn) {
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('app').classList.add('hidden');
+                return;
+            } else {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+            }
+
+            const savedLogs = localStorage.getItem('cycleLogs');
+            if (savedLogs) state.logs = JSON.parse(savedLogs);
+            
+            if (state.isDarkMode) document.documentElement.classList.add('dark');
+            updateUI();
+        }
+
+        // --- Core Logic ---
+        function getPhase(date) {
+            const sortedStarts = Object.entries(state.logs)
+                .filter(([_, data]) => data.period)
+                .map(([d]) => new Date(d))
+                .sort((a, b) => b - a);
+
+            if (sortedStarts.length === 0) return PHASE_INFO.UNKNOWN;
+
+            const lastStart = sortedStarts.find(d => d <= date);
+            if (!lastStart) return PHASE_INFO.UNKNOWN;
+
+            const daysSinceStart = Math.floor((date - lastStart) / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Standard 28-day cycle logic (Simplified)
+            if (daysSinceStart <= 5) return { ...PHASE_INFO.MENSTRUAL, day: daysSinceStart };
+            if (daysSinceStart <= 13) return { ...PHASE_INFO.FOLLICULAR, day: daysSinceStart };
+            if (daysSinceStart === 14) return { ...PHASE_INFO.OVULATION, day: daysSinceStart };
+            if (daysSinceStart <= 28) return { ...PHASE_INFO.LUTEAL, day: daysSinceStart };
+            
+            return { ...PHASE_INFO.MENSTRUAL, day: daysSinceStart }; // Overdue
+        }
+
+        function calculateAverages() {
+            const sortedStarts = Object.entries(state.logs)
+                .filter(([_, data]) => data.period)
+                .map(([d]) => new Date(d))
+                .sort((a, b) => a - b);
+
+            if (sortedStarts.length < 2) return { cycleLength: 28 };
+
+            let totalDays = 0;
+            for (let i = 1; i < sortedStarts.length; i++) {
+                totalDays += (sortedStarts[i] - sortedStarts[i-1]) / (1000 * 60 * 60 * 24);
+            }
+            return { cycleLength: Math.round(totalDays / (sortedStarts.length - 1)) };
+        }
+
+        // --- UI Rendering ---
+        function updateUI() {
+            renderDashboard();
+            renderCalendar();
+            document.getElementById('current-date-display').innerText = state.currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+            
+            const sunIcon = document.getElementById('sun-icon');
+            const moonIcon = document.getElementById('moon-icon');
+            if (state.isDarkMode) {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+
+        function renderDashboard() {
+            const currentPhase = getPhase(new Date());
+            const averages = calculateAverages();
+            
+            const tagEl = document.getElementById('phase-tag');
+            const dayEl = document.getElementById('day-counter');
+            const titleEl = document.getElementById('phase-title');
+            const descEl = document.getElementById('phase-description');
+            const progressEl = document.getElementById('cycle-progress');
+            const insightEl = document.getElementById('insight-container');
+            const nextPeriodEl = document.getElementById('next-period-date');
+
+            tagEl.innerText = currentPhase.tag;
+            tagEl.style.backgroundColor = `${currentPhase.color}33`;
+            tagEl.style.color = currentPhase.color;
+            
+            dayEl.innerText = currentPhase.day ? `Day ${currentPhase.day}` : "Day --";
+            titleEl.innerText = currentPhase.title;
+            descEl.innerText = currentPhase.description;
+            
+            const progress = currentPhase.day ? (currentPhase.day / averages.cycleLength) * 100 : 0;
+            progressEl.style.width = `${Math.min(progress, 100)}%`;
+            progressEl.style.backgroundColor = currentPhase.color;
+
+            insightEl.innerHTML = `<div class="p-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm italic">"${currentPhase.insight}"</div>`;
+
+            // Prediction
+            const sortedStarts = Object.entries(state.logs)
+                .filter(([_, data]) => data.period)
+                .map(([d]) => new Date(d))
+                .sort((a, b) => b - a);
+
+            if (sortedStarts.length > 0) {
+                const next = new Date(sortedStarts[0]);
+                next.setDate(next.getDate() + averages.cycleLength);
+                nextPeriodEl.innerText = next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            }
+        }
+
+        function renderCalendar() {
+            const body = document.getElementById('calendar-body');
+            const monthYear = document.getElementById('calendar-month-year');
+            body.innerHTML = '';
+
+            const year = state.viewDate.getFullYear();
+            const month = state.viewDate.getMonth();
+            monthYear.innerText = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(state.viewDate);
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                body.appendChild(document.createElement('div'));
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateKey = date.toISOString().split('T')[0];
+                const log = state.logs[dateKey];
+                const phase = getPhase(date);
+
+                const cell = document.createElement('div');
+                cell.className = 'day-cell';
+                cell.onclick = () => openLogModal(dateKey);
+
+                const circle = document.createElement('div');
+                circle.className = 'phase-highlight';
+                circle.innerText = day;
+
+                if (log?.period) circle.classList.add('menstrual-bg');
+                else if (phase.tag === 'Follicular') circle.classList.add('follicular-bg');
+                else if (phase.tag === 'Fertile Window') circle.classList.add('ovulation-bg');
+                else if (phase.tag === 'Luteal') circle.classList.add('luteal-bg');
+
+                if (dateKey === new Date().toISOString().split('T')[0]) {
+                    cell.classList.add('font-black', 'text-slate-900', 'dark:text-white', 'underline');
+                }
+
+                cell.appendChild(circle);
+
+                if (log?.tags?.length > 0 || log?.note) {
+                    const dot = document.createElement('div');
+                    dot.className = 'indicator bg-slate-400';
+                    cell.appendChild(dot);
+                }
+
+                body.appendChild(cell);
+            }
+        }
+
+        // --- Modal & Interaction ---
+        function openLogModal(dateKey) {
+            state.selectedDate = dateKey;
+            const log = state.logs[dateKey] || { period: false, tags: [], note: "" };
+            
+            document.getElementById('modal-date-title').innerText = new Date(dateKey).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            document.getElementById('daily-notes').value = log.note || "";
+            
+            const periodBtn = document.getElementById('period-btn');
+            periodBtn.className = log.period 
+                ? "flex-1 py-3 px-4 rounded-2xl border-2 border-red-400 bg-red-50 dark:bg-red-900/20 text-sm font-bold text-red-600"
+                : "flex-1 py-3 px-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 text-sm font-medium";
+
+            // Update tags UI
+            document.querySelectorAll('.tag-btn').forEach(btn => {
+                const emoji = btn.innerText.split(' ')[0];
+                if (log.tags.includes(emoji)) {
+                    btn.classList.add('bg-slate-900', 'text-white');
+                    btn.classList.remove('bg-slate-100', 'dark:bg-slate-700');
+                } else {
+                    btn.classList.remove('bg-slate-900', 'text-white');
+                    btn.classList.add('bg-slate-100', 'dark:bg-slate-700');
+                }
+            });
+
+            document.getElementById('log-modal').classList.remove('hidden');
+        }
+
+        function togglePeriodMark() {
+            const log = state.logs[state.selectedDate] || { period: false, tags: [], note: "" };
+            log.period = !log.period;
+            state.logs[state.selectedDate] = log;
+            openLogModal(state.selectedDate); // Refresh UI
+        }
+
+        function toggleTag(emoji) {
+            const log = state.logs[state.selectedDate] || { period: false, tags: [], note: "" };
+            if (log.tags.includes(emoji)) {
+                log.tags = log.tags.filter(t => t !== emoji);
+            } else {
+                log.tags.push(emoji);
+            }
+            state.logs[state.selectedDate] = log;
+            openLogModal(state.selectedDate);
+        }
+
+        function saveDayLog() {
+            const note = document.getElementById('daily-notes').value;
+            if (!state.logs[state.selectedDate]) state.logs[state.selectedDate] = { period: false, tags: [], note: "" };
+            state.logs[state.selectedDate].note = note;
+
+            // Cleanup empty logs
+            if (!state.logs[state.selectedDate].period && state.logs[state.selectedDate].tags.length === 0 && !note) {
+                delete state.logs[state.selectedDate];
+            }
+
+            localStorage.setItem('cycleLogs', JSON.stringify(state.logs));
+            showToast("Log updated successfully");
+            closeModals();
+            updateUI();
+        }
+
+        function changeMonth(dir) {
+            state.viewDate.setMonth(state.viewDate.getMonth() + dir);
+            updateUI();
+        }
+
+        function toggleDarkMode() {
+            state.isDarkMode = !state.isDarkMode;
+            localStorage.setItem('darkMode', state.isDarkMode);
+            document.documentElement.classList.toggle('dark');
+            updateUI();
+        }
+
+        function closeModals() {
+            document.getElementById('log-modal').classList.add('hidden');
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        // --- Data Management ---
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.logs));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "cycle_data_backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    state.logs = { ...state.logs, ...imported };
+                    localStorage.setItem('cycleLogs', JSON.stringify(state.logs));
+                    updateUI();
+                    showToast("Import successful");
+                    closeModals();
+                } catch (err) {
+                    showToast("Error: Invalid file format");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function resetData() {
+            if (confirm("Are you sure you want to delete all logs? This cannot be undone.")) {
+                state.logs = {};
+                localStorage.removeItem('cycleLogs');
+                updateUI();
+                closeModals();
+                showToast("All data cleared");
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
